@@ -4,12 +4,23 @@
 /* Classes */
 const Game = require('./game.js');
 const Player = require('./player.js');
+const Car = require('./car.js');
+const EntityManager = require('./entity-manager');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
-var player = new Player({x: 0, y: 240})
+var entities = new EntityManager(canvas.width,canvas.height,55);
 
+var player = new Player({x: 0, y: 240});
+entities.addEntity(player);
+var cars = [];
+
+var speed = 1;
+var internalClock = 200;
+var lives = 3;
+var level = 1;
+var gameOver=false;
 /**
  * @function masterLoop
  * Advances the game in sync with the refresh rate of the screen
@@ -31,24 +42,288 @@ masterLoop(performance.now());
  * the number of milliseconds passed since the last frame.
  */
 function update(elapsedTime) {
-  player.update(elapsedTime);
-  // TODO: Update the game objects
+	if(internalClock%200==0){
+		var car = new Car({x:(Math.random()*400)+70,y:canvas.height},Math.floor((Math.random()*100)/25));
+		cars.push(car);
+		entities.addEntity(car);
+		internalClock=0;
+		var leftScreen = entities.cells[-1];
+	
+		leftScreen.forEach(function(entity){
+		
+			if(entity.id=="car"){
+				
+				for(i=0;i<cars.length;i++){
+					if(cars[i]==entity){
+						cars.splice(i,1);
+					}
+				}
+			}
+		});
+	}
+	entities.collide(function(entity1,entity2){
+		if(entity1.id=="car" || entity2.id=="car"){
+			lives-=1;
+			if(lives==0){
+				gameOver=true;
+			}
+			player.x=0;
+			player.state = "idle";
+		}
+		else if (entity2.id=="log"){
+			if(entity1.state=="idle"){
+				entity1.y-=speed;
+			}
+		}
+	});
+	player.update(elapsedTime);
+	entities.updateEntity(player);
+	cars.forEach(function(car){
+		car.update(elapsedTime,speed);
+		entities.updateEntity(car);
+	});
+	internalClock+=1;
+	// TODO: Update the game objects
 }
+
+
 
 /**
   * @function render
   * Renders the current game state into a back buffer.
-  * @param {DOMHighResTimeStamp} elapsedTime indicates
+  * @param {DOMHighResTimeSt amp} elapsedTime indicates
   * the number of milliseconds passed since the last frame.
   * @param {CanvasRenderingContext2D} ctx the context to render to
   */
 function render(elapsedTime, ctx) {
-  ctx.fillStyle = "lightblue";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  player.render(elapsedTime, ctx);
+	
+	if(gameOver==true){
+		ctx.fillStyle = "black";
+		ctx.font = "25px Arial";
+		ctx.fillText("Level: " +level, 10,30);
+		ctx.fillText("Lives: " +lives, 10,60);
+		ctx.font = "75px Arial";
+		ctx.fillText("GAME OVER", 370,200);
+		return;
+	}
+	ctx.fillStyle = "lightblue";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	ctx.fillStyle = "gray";
+	ctx.fillRect(64, 0, canvas.width/2, canvas.height);
+	ctx.fillStyle = "green";
+	ctx.fillRect(0, 0, 64, canvas.height);
+	ctx.fillRect(canvas.width/2-64, 0, 128, canvas.height);
+	ctx.fillRect(1136, 0, 64, canvas.height);
+	ctx.fillStyle = "black";
+	ctx.font = "25px Arial";
+	ctx.fillText("Level: " +level, 10,30);
+	ctx.fillText("Lives: " +lives, 10,60);
+	
+	cars.forEach(function(car){
+	  car.render(elapsedTime,ctx,car.color);
+	});
+
+	player.render(elapsedTime, ctx);
+	//entities.renderCells(ctx);
 }
 
-},{"./game.js":2,"./player.js":3}],2:[function(require,module,exports){
+
+},{"./car.js":2,"./entity-manager":3,"./game.js":4,"./player.js":5}],2:[function(require,module,exports){
+"use strict";9
+
+const MS_PER_FRAME = 1000/8;
+
+/**
+ * @module exports the Car class
+ */
+module.exports = exports = Car;
+
+/**
+ * @constructor Car
+ * Creates a new Car object
+ * @param {Postition} position object specifying an x and y
+ */
+function Car(position, numberColor) {
+  this.x = position.x;
+  this.y = position.y;
+  this.width  = 64;
+  this.height = 128;
+  this.spritesheet  = new Image();
+  this.spritesheet.src = encodeURI('assets/cars_racer.svg');
+  this.id="car";
+  this.color = numberColor;
+}
+
+/**
+ * @function updates the Car object
+ * {DOMHighResTimeStamp} time the elapsed time since the last frame
+ */
+Car.prototype.update = function(time,speed) {
+	this.y-=speed;
+}
+
+/**
+ * @function renders the Car into the provided context
+ * {DOMHighResTimeStamp} time the elapsed time since the last frame
+ * {CanvasRenderingContext2D} ctx the context to render into
+ */
+Car.prototype.render = function(time, ctx, whichCar) {
+
+	ctx.drawImage(
+	// image
+		this.spritesheet,
+		// source rectangle
+		(this.color)*390 , 0, 220, 450,
+		// destination rectangle
+		this.x, this.y, this.width, this.height
+	);
+	ctx.strokeStyle = this.color;
+	ctx.strokeRect(this.x, this.y, this.width, this.height);
+}
+
+
+
+},{}],3:[function(require,module,exports){
+module.exports = exports = EntityManager;
+
+function EntityManager(width, height, cellSize) {
+  this.cellSize = cellSize;
+  this.widthInCells = Math.ceil(width / cellSize);
+  this.heightInCells = Math.ceil(height / cellSize);
+  this.cells = [];
+  this.numberOfCells = this.widthInCells * this.heightInCells;
+  for(var i = 0; i < this.numberOfCells; i++) {
+    this.cells[i] = [];
+  }
+  this.cells[-1] = [];
+}
+
+function getIndex(x, y) {
+  var x = Math.floor(x / this.cellSize);
+  var y = Math.floor(y / this.cellSize);
+  if(x < 0 ||
+     x >= this.widthInCells ||
+     y < 0 ||
+     y >= this.heightInCells
+  ) return -1;
+  return y * this.widthInCells + x;
+}
+
+EntityManager.prototype.addEntity = function(entity){
+  var index = getIndex.call(this, entity.x, entity.y);
+  this.cells[index].push(entity);
+  entity._cell = index;
+}
+
+EntityManager.prototype.updateEntity = function(entity){
+  var index = getIndex.call(this, entity.x, entity.y);
+  // If we moved to a new cell, remove from old and add to new
+  if(index != entity._cell) {
+    var cellIndex = this.cells[entity._cell].indexOf(entity);
+    if(cellIndex != -1) this.cells[entity._cell].splice(cellIndex, 1);
+    this.cells[index].push(entity);
+    entity._cell = index;
+  }
+}
+
+EntityManager.prototype.removeEntity = function(entity) {
+  var cellIndex = this.cells[entity._cell].indexOf(entity);
+  if(cellIndex != -1) this.cells[entity._cell].splice(cellIndex, 1);
+  entity._cell = undefined;
+}
+
+
+EntityManager.prototype.collide = function(callback) {
+  var self = this;
+  this.cells.forEach(function(cell, i) {
+    // test for collisions
+    cell.forEach(function(entity1) {
+      // check for collisions with cellmates
+	  if(entity1.id=="player"){
+		  cell.forEach(function(entity2) {
+			if(entity1 != entity2) checkForCollision(entity1, entity2, callback);
+				
+			// check for collisions in cell to the right
+			
+			  self.cells[i+1].forEach(function(entity2) {
+				checkForCollision(entity1, entity2, callback);
+			  });
+			
+			
+			// check for collisions in cell to the left
+			
+			  self.cells[i-1].forEach(function(entity2) {
+				checkForCollision(entity1, entity2, callback);
+			  });
+			
+			
+			//check to see if need to check below
+			if(self.numberOfCells - self.widthInCells>i){
+			  // check for collisions in cell below
+			
+			  self.cells[i+self.widthInCells].forEach(function(entity2){
+				checkForCollision(entity1, entity2, callback);
+			  });
+			  // check for collisions diagionally below and left
+			
+			  self.cells[i+self.widthInCells - 1].forEach(function(entity2){
+				checkForCollision(entity1, entity2, callback);
+			  });
+			  // check for collisions diagionally below and right
+			
+			  self.cells[i+self.widthInCells + 1].forEach(function(entity2){
+				checkForCollision(entity1, entity2, callback);
+			  });
+			  
+			}
+			//check to see if need to check above
+			 if(self.widthInCells<i){
+				 // check for collisions diagionally above and left
+				  self.cells[i-self.widthInCells - 1].forEach(function(entity2){
+					checkForCollision(entity1, entity2, callback);
+				  });
+				  // check for collisions diagionally above and right
+				  self.cells[i-self.widthInCells + 1].forEach(function(entity2){
+					checkForCollision(entity1, entity2, callback);
+				  });
+				  // check for collisions in cell above
+				  self.cells[i-self.widthInCells].forEach(function(entity2){
+					checkForCollision(entity1, entity2, callback);
+				  });
+			 }
+			
+			
+			
+		  });
+		return;
+	  }
+    });
+	
+  });
+}
+
+function checkForCollision(entity1, entity2, callback) {
+  var collides = !(entity1.x + entity1.width < entity2.x ||
+                   entity1.x > entity2.x + entity2.width ||
+                   entity1.y + entity1.height < entity2.y ||
+                   entity1.y > entity2.y + entity2.height);
+  if(collides) {
+	  
+    callback(entity1, entity2);
+  }
+}
+
+EntityManager.prototype.renderCells = function(ctx) {
+  for(var x = 0; x < this.widthInCells; x++) {
+    for(var y = 0; y < this.heightInCells; y++) {
+      ctx.strokeStyle = '#333333';
+      ctx.strokeRect(x * this.cellSize, y * this.cellSize, this.cellSize, this.cellSize);
+	  
+    }
+  }
+}
+
+},{}],4:[function(require,module,exports){
 "use strict";
 
 /**
@@ -106,7 +381,7 @@ Game.prototype.loop = function(newTime) {
   this.frontCtx.drawImage(this.backBuffer, 0, 0);
 }
 
-},{}],3:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 
 const MS_PER_FRAME = 1000/8;
@@ -115,7 +390,11 @@ const MS_PER_FRAME = 1000/8;
  * @module exports the Player class
  */
 module.exports = exports = Player;
-
+var input = {
+	up:false,
+	down:false,
+	jump:false
+}
 /**
  * @constructor Player
  * Creates a new player object
@@ -128,9 +407,17 @@ function Player(position) {
   this.width  = 64;
   this.height = 64;
   this.spritesheet  = new Image();
-  this.spritesheet.src = encodeURI('assets/PlayerSprite2.png');
+  this.spritesheet.src = encodeURI('assets/PlayerSprite1.png');
   this.timer = 0;
   this.frame = 0;
+  this.speed = 10;
+  this.id = "player";
+  
+  //window.onmousedown = function(event) {
+  //  if(self.state == "idle") {
+  //    self.state = "jumping";
+  //  }
+  //}
 }
 
 /**
@@ -138,6 +425,8 @@ function Player(position) {
  * {DOMHighResTimeStamp} time the elapsed time since the last frame
  */
 Player.prototype.update = function(time) {
+  var self=this;
+  if(input.jump==true) self.state="jumping";
   switch(this.state) {
     case "idle":
       this.timer += time;
@@ -146,8 +435,29 @@ Player.prototype.update = function(time) {
         this.frame += 1;
         if(this.frame > 3) this.frame = 0;
       }
+	  if(input.up){
+		  if(this.y > 5) this.y-=2;
+	  }
+	  else if (input.down)
+	  {
+		  if(this.y < 420) this.y+=2;
+	  }	
+	  
       break;
     // TODO: Implement your player's update by state
+	case "jumping":
+		this.timer+=time;
+		if(this.timer > MS_PER_FRAME){
+			this.x += this.speed;
+			this.timer=0;
+			this.frame+=1;
+			if(this.frame>8){
+				this.frame=0;
+				this.state="idle";
+			}
+		}
+		break;
+		
   }
 }
 
@@ -169,7 +479,63 @@ Player.prototype.render = function(time, ctx) {
       );
       break;
     // TODO: Implement your player's redering according to state
+	case "jumping":
+		ctx.drawImage(
+			// image
+			this.spritesheet,
+			// source rectangle
+			Math.floor(this.frame/4)*64, 0, this.width, this.height,
+			// destination rectangle
+			this.x, this.y, this.width, this.height
+		  );
+		  break;
   }
+  ctx.strokeStyle = this.color;
+	ctx.strokeRect(this.x, this.y, this.width, this.height);
 }
+
+window.onkeydown = function(event)
+{
+	event.preventDefault();
+	if(this.state="idle"){
+		switch(event.keyCode)
+		{
+			 case 32:
+				input.jump = true;
+				break;			
+			 case 38:
+			 case 87:
+				input.up = true;
+				break;
+			 case 40:
+			 case 83:
+				input.down = true;
+				break;
+
+		}
+	}
+}
+window.onkeyup = function(event)
+{
+	event.preventDefault();
+	switch(event.keyCode)
+	{
+		case 32:
+			input.jump = false;
+			break;
+		 case 38:
+		 case 87:
+			input.up = false;
+			break;
+
+		 case 40:
+		 case 83:
+			input.down = false;
+			break;
+
+	}
+}
+
+
 
 },{}]},{},[1]);

@@ -1,4 +1,4 @@
-"use strict";9
+"use strict";
 
 const MS_PER_FRAME = 1000/8;
 

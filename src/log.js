@@ -1,3 +1,5 @@
+//The bark was made by Bart K. retrieved from OpenGameArt at the following link: http://opengameart.org/content/seamless-tiling-tree-bark-texture
+
 "use strict";
 
 const MS_PER_FRAME = 1000/8;
@@ -12,11 +14,11 @@ module.exports = exports = Log;
  * Creates a new Log object
  * @param {Postition} position object specifying an x and y
  */
-function Log(position) {
-  this.x = position.x;
-  this.y = position.y;
-  this.width  = 64;
-  this.height = 128;
+function Log(x,y) {
+  this.x = x;
+  this.y = y;
+  this.width  = 50;
+  this.height = 100;
   this.spritesheet  = new Image();
   this.spritesheet.src = encodeURI('assets/bark.png');
   this.id="log";

@@ -5,21 +5,26 @@ const Game = require('./game.js');
 const Player = require('./player.js');
 const Car = require('./car.js');
 const EntityManager = require('./entity-manager');
+const Log = require('./log.js');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 var entities = new EntityManager(canvas.width,canvas.height,55);
 
+var log = new Log()
 var player = new Player({x: 0, y: 240});
 entities.addEntity(player);
 var cars = [];
-
+var logs = [];
 var speed = 1;
 var internalClock = 200;
 var lives = 3;
 var level = 1;
 var gameOver=false;
+var onLog = false;
+var logSpawnTime = 50;
+var carSpawnTime = 200;
 /**
  * @function masterLoop
  * Advances the game in sync with the refresh rate of the screen
@@ -41,20 +46,40 @@ masterLoop(performance.now());
  * the number of milliseconds passed since the last frame.
  */
 function update(elapsedTime) {
-	if(internalClock%200==0){
+	if(player.x>1136){
+		level+=1;
+		player.x=0;
+		speed+=0.5;
+		player.state="idle";
+		logSpawnTime-=5;
+		carSpawnTime-=10;
+	}
+	
+	
+	if(internalClock%logSpawnTime==0){
+		var log = new Log((Math.random()*425)+670,canvas.height);
+		logs.push(log);
+		entities.addEntity(log);
+	}
+	if(internalClock%carSpawnTime==0){
 		var car = new Car({x:(Math.random()*400)+70,y:canvas.height},Math.floor((Math.random()*100)/25));
 		cars.push(car);
 		entities.addEntity(car);
 		internalClock=0;
 		var leftScreen = entities.cells[-1];
-	
+		//delete entity if it has left screen every 200 time increments 
 		leftScreen.forEach(function(entity){
-		
 			if(entity.id=="car"){
-				
 				for(i=0;i<cars.length;i++){
 					if(cars[i]==entity){
 						cars.splice(i,1);
+					}
+				}
+			}
+			else if(entity.id="log"){
+				for(i=0;i<logs.length;i++){
+					if(logs[i]==entity){
+						logs.splice(i,1);
 					}
 				}
 			}
@@ -63,23 +88,38 @@ function update(elapsedTime) {
 	entities.collide(function(entity1,entity2){
 		if(entity1.id=="car" || entity2.id=="car"){
 			lives-=1;
-			if(lives==0){
-				gameOver=true;
-			}
 			player.x=0;
 			player.state = "idle";
 		}
 		else if (entity2.id=="log"){
-			if(entity1.state=="idle"){
-				entity1.y-=speed;
-			}
+			onLog = true;
 		}
 	});
+	if(player.state=="idle"){
+		if(onLog==true){
+			player.y-=speed;
+			onLog=false;
+		}
+		else{
+			if(player.x>650 && player < 1020){
+				lives-=1;
+				player.x=0;
+				player.state = "idle";
+			}
+		}
+	}
+	if(lives==0){
+		gameOver=true;
+	}
 	player.update(elapsedTime);
 	entities.updateEntity(player);
 	cars.forEach(function(car){
 		car.update(elapsedTime,speed);
 		entities.updateEntity(car);
+	});
+	logs.forEach(function(log){
+		log.update(elapsedTime,speed);
+		entities.updateEntity(log);
 	});
 	internalClock+=1;
 	// TODO: Update the game objects
@@ -103,6 +143,8 @@ function render(elapsedTime, ctx) {
 		ctx.fillText("Lives: " +lives, 10,60);
 		ctx.font = "75px Arial";
 		ctx.fillText("GAME OVER", 370,200);
+		ctx.font = "50px Arial";
+		ctx.fillText("REFRESH BROWSER TO RESTART",200,300);
 		return;
 	}
 	ctx.fillStyle = "lightblue";
@@ -120,6 +162,9 @@ function render(elapsedTime, ctx) {
 	
 	cars.forEach(function(car){
 	  car.render(elapsedTime,ctx,car.color);
+	});
+	logs.forEach(function(log){
+		log.render(elapsedTime,ctx);
 	});
 
 	player.render(elapsedTime, ctx);

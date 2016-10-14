@@ -86,6 +86,7 @@ function update(elapsedTime) {
 			}
 		});
 	}
+	
 	entities.collide(function(entity1,entity2){
 		if(entity1.id=="car" || entity2.id=="car"){
 			lives-=1;
@@ -102,7 +103,7 @@ function update(elapsedTime) {
 			onLog=false;
 		}
 		else{
-			if(player.x>650 && player < 1020){
+			if(player.x>650 && player.x < 1020){
 				lives-=1;
 				player.x=0;
 				player.state = "idle";
@@ -222,8 +223,6 @@ Car.prototype.render = function(time, ctx, whichCar) {
 		// destination rectangle
 		this.x, this.y, this.width, this.height
 	);
-	ctx.strokeStyle = this.color;
-	ctx.strokeRect(this.x, this.y, this.width, this.height);
 }
 
 
@@ -591,8 +590,6 @@ Player.prototype.render = function(time, ctx) {
 		  );
 		  break;
   }
-  ctx.strokeStyle = this.color;
-	ctx.strokeRect(this.x, this.y, this.width, this.height);
 }
 
 window.onkeydown = function(event)

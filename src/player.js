@@ -106,8 +106,6 @@ Player.prototype.render = function(time, ctx) {
 		  );
 		  break;
   }
-  ctx.strokeStyle = this.color;
-	ctx.strokeRect(this.x, this.y, this.width, this.height);
 }
 
 window.onkeydown = function(event)
